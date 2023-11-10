@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -18,9 +19,14 @@ var (
 	port = pflag.Int("server.port", 8080, "http port to listen on")
 
 	nodes = pflag.StringArray("reverse.nodes", []string{
-		"https://eth-mainnet-public.unifra.io",
 		"https://eth.llamarpc.com",
 		"https://ethereum.publicnode.com",
+		"https://rpc.flashbots.net/fast",
+		"https://rpc.flashbots.net",
+		"https://1rpc.io/eth",
+		"https://rpc.ankr.com/eth",
+		"https://eth-mainnet.public.blastapi.io",
+		"https://rpc.eth.gateway.fm",
 	}, "ethereum nodes to reverse proxy to")
 
 	printMetricsInterval = pflag.Duration("metrics.interval", time.Minute*5, "print metrics interval, set to 0 to disable")
@@ -84,6 +90,12 @@ func buildNode(target *url.URL) *ReverseProxyNode {
 	originDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originDirector(req)
+
+		// remove trailing slash
+		if strings.HasSuffix(req.URL.Path, "/") {
+			req.URL.Path = req.URL.Path[:len(req.URL.Path)-1]
+		}
+
 		// disable set x-forwarded-for
 		req.Header["X-Forwarded-For"] = nil
 		req.Host = target.Host
