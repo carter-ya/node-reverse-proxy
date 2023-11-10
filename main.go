@@ -25,7 +25,6 @@ var (
 		"https://rpc.flashbots.net",
 		"https://1rpc.io/eth",
 		"https://rpc.ankr.com/eth",
-		"https://eth-mainnet.public.blastapi.io",
 		"https://rpc.eth.gateway.fm",
 	}, "ethereum nodes to reverse proxy to")
 
