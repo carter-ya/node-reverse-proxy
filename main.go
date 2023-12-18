@@ -65,6 +65,9 @@ func main() {
 		node := nextNode()
 		node.Proxy.ServeHTTP(writer, request)
 	})
+	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	go func() {
