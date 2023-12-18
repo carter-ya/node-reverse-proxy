@@ -108,8 +108,7 @@ func buildNode(target *url.URL) *ReverseProxyNode {
 		Proxy: proxy,
 	}
 	proxy.ModifyResponse = func(response *http.Response) error {
-		node.ModifyResponse(response)
-		return nil
+		return node.ModifyResponse(response)
 	}
 
 	return node
@@ -134,6 +133,7 @@ func runPrintNodeMetrics(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
+			logger.Infof("==============================metrics start==============================")
 			for _, node := range ReverseProxyNodes {
 				logger.Infof("node %s: calls %d, 2xx %d, 4xx %d, 5xx %d",
 					node.URL,
