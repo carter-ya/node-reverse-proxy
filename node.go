@@ -49,8 +49,8 @@ func (node *ReverseProxyNode) ModifyResponse(r *http.Response) error {
 			errorNode := jsonquery.FindOne(doc, "//error")
 			if errorNode != nil {
 				logger.Warnf("detect error from node: %s, content: %s", node.URL, errorNode.Value())
+				statusCode = 429 // if the response is invalid, force to return 429
 			}
-			statusCode = 429 // if the response is invalid, force to return 429
 		} else {
 			logger.Warnf("parse response from node %s error: %s", node.URL, err)
 		}
