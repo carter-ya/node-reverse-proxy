@@ -42,7 +42,7 @@ func (node *ReverseProxyNode) ModifyResponse(r *http.Response) error {
 	}
 	defer r.Body.Close()
 
-	ub, err := tryUncompressResponse(r, b)
+	ub, err := tryDecompressResponse(r, b)
 	if err == nil {
 		doc, err := jsonquery.Parse(bytes.NewReader(ub))
 		if err == nil {
@@ -63,7 +63,7 @@ func (node *ReverseProxyNode) ModifyResponse(r *http.Response) error {
 	return nil
 }
 
-func tryUncompressResponse(r *http.Response, b []byte) ([]byte, error) {
+func tryDecompressResponse(r *http.Response, b []byte) ([]byte, error) {
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		ub, err := gzip.NewReader(io.NopCloser(bytes.NewReader(b)))
 		if err != nil {
