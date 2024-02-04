@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/spf13/pflag"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -28,6 +31,8 @@ var (
 		"https://rpc.eth.gateway.fm",
 	}, "ethereum nodes to reverse proxy to")
 
+	nodeHealthProxy = pflag.Bool("node-health-proxy", false, "enable health check proxy, if enabled, the `reverse.nodes` MUST only one node, it will proxy `eth_syncing`")
+
 	printMetricsInterval = pflag.Duration("metrics.interval", time.Minute*5, "print metrics interval, set to 0 to disable")
 	debug                = pflag.Bool("debug", false, "debug mode")
 )
@@ -50,6 +55,10 @@ func main() {
 		logger.Fatalf("No nodes specified")
 	}
 
+	if *nodeHealthProxy && len(*nodes) > 1 {
+		logger.Fatalf("node health proxy can only have one node")
+	}
+
 	ReverseProxyNodes = make([]*ReverseProxyNode, len(*nodes))
 	for i, node := range *nodes {
 		nodeURL, err := url.Parse(node)
@@ -66,7 +75,64 @@ func main() {
 		node.Proxy.ServeHTTP(writer, request)
 	})
 	http.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusOK)
+		if *nodeHealthProxy {
+			node := ReverseProxyNodes[0]
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, "POST", node.URL.String(), strings.NewReader(`
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "eth_syncing"
+}
+`))
+			if err != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				logger.Errorf("create health check request error: %s", err)
+				return
+			}
+			req.Header.Set("Content-Type", "application/json;charset=utf8")
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				writer.WriteHeader(http.StatusServiceUnavailable)
+				logger.Errorf("health check request error: %s", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				logger.Errorf("read health check response error: %s", err)
+				return
+			}
+			jsonResp := make(map[string]any)
+			decoder := json.NewDecoder(bytes.NewReader(b))
+			decoder.UseNumber()
+			if err := decoder.Decode(&jsonResp); err != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				logger.Errorf("decode health check response error: %s", err)
+				return
+			}
+			result := jsonResp["result"]
+			if boolResult, ok := result.(bool); ok {
+				if boolResult {
+					writer.WriteHeader(http.StatusInternalServerError)
+					logger.Errorf("unexpected health check result: %v", result)
+				} else {
+					writer.WriteHeader(http.StatusOK)
+				}
+			} else {
+				writer.Header().Set("Content-Type", "application/json;charset=utf8")
+				writer.WriteHeader(http.StatusBadGateway)
+				_, _ = writer.Write(b)
+				logger.Infof("health check result: %v", result)
+			}
+		} else {
+			writer.WriteHeader(http.StatusOK)
+		}
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
