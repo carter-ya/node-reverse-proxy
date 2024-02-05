@@ -52,7 +52,7 @@ func (node *ReverseProxyNode) ModifyResponse(r *http.Response) error {
 				statusCode = 429 // if the response is invalid, force to return 429
 			}
 		} else {
-			logger.Warnf("parse response from node %s error: %s", node.URL, err)
+			logger.Warnf("parse response from node: %s, content: %s, error: %s", node.URL, string(ub), err)
 		}
 	}
 
